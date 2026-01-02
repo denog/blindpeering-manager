@@ -1,0 +1,58 @@
+meta {
+  name: Get Pretix Attendees
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://pretix.eu/api/v1/organizers/denog/events/{{event}}/checkinlists/{{checkin_list_id}}/positions/
+  body: none
+  auth: none
+}
+
+params:query {
+  ~page: 1
+}
+
+headers {
+  Authorization: Token {{pretix_api_token}}
+}
+
+vars:pre-request {
+  event: denog17
+  checkin_list_id: 418313
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  // Handle pagination if needed
+  const response = res.getBody();
+  if (response.next) {
+    console.log('Next page available:', response.next);
+  }
+
+  // Log count of results
+  if (response.results) {
+    console.log('Attendees in this page:', response.results.length);
+  }
+}
+
+docs {
+  # Pretix Get Attendees
+
+  Retrieves all attendees from a Pretix check-in list.
+
+  ## Variables Required
+  - `pretix_api_token`: Your Pretix API token
+  - `event`: Event slug (default: denog17)
+  - `checkin_list_id`: Check-in list ID (default: 418313)
+
+  ## Pagination
+  The API returns paginated results. Check the `next` field in the response for the next page URL.
+
+  ## Original Script
+  Based on pull_attendee_data2.sh for DENOG17 Pre-Social Checkin list.
+}

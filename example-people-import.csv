@@ -1,0 +1,8 @@
+given_name,family_name,attendee_name,attendee_email,is_table_captain,captain_phone,captain_preferred_contact,status
+John,Doe,John Doe,john.doe@example.com,true,+49 123 456789,whatsapp,registered
+Jane,Doe,Jane Doe,jane.doe@example.com,false,,,registered
+Michael,Johnson,Mike J,michael.j@example.com,true,+49 987 654321,telegram,registered
+Emily,Williams,Emily Williams,emily.w@example.com,false,,,late_joiner
+Emma,Williams,Emma Williams,emma.w@example.com,false,,,late_joiner
+David,Brown,Dave Brown,david.brown@example.com,true,+49 555 123456,phone,registered
+Sarah,Davis,Sarah Davis,sarah.davis@example.com,false,,,cancelled

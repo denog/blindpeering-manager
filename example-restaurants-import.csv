@@ -1,0 +1,7 @@
+name,address,phone,max_seats,taxi_time,public_transport_time,public_transport_lines
+Restaurant Italia,"Hauptstraße 123, 10178 Berlin",+49 30 12345678,12,8,15,U8 S-Bahn Ring
+Das Steakhaus,"Friedrichstraße 45, 10969 Berlin",+49 30 98765432,10,10,12,U6 Tram M10
+Sushi Palace,"Alexanderplatz 1, 10178 Berlin",+49 30 55512345,8,5,8,S5 S7 U2 U5
+La Cantina,"Kreuzberg Str. 88, 10965 Berlin",+49 30 77788899,14,12,18,U1 U3
+Burger Kingdom,"Prenzlauer Allee 200, 10405 Berlin",+49 30 33344455,10,15,20,Tram M2 U2
+Greek Taverna,"Schönhauser Allee 150, 10435 Berlin",+49 30 66677788,12,14,16,U2 Tram M1

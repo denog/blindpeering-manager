@@ -1,0 +1,55 @@
+# Dependencies
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist
+.vite
+build
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Documentation
+README.md
+*.md
+docs
+
+# Supabase local development (if you don't need it in the container)
+supabase
+
+# CI/CD
+.github
+.gitlab-ci.yml
