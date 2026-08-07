@@ -21,6 +21,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -468,12 +469,10 @@ export function RestaurantDialog({
                   <FormItem className="md:col-span-2">
                     <FormLabel>Reservation confirmed</FormLabel>
                     <FormControl>
-                      <Input
-                        type="datetime-local"
-                        value={field.value ?? ""}
-                        onChange={(event) =>
-                          field.onChange(event.target.value || null)
-                        }
+                      <DateTimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pick confirmation date and time"
                       />
                     </FormControl>
                     <FormMessage />

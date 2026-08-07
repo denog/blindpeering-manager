@@ -24,7 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
@@ -177,27 +177,19 @@ export function EventSettingsCard() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="event-date" className="flex items-center gap-2">
+              <Label htmlFor="event-date-time" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Event Date
+                Event Date &amp; Arrival Time
               </Label>
-              <Input
-                id="event-date"
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="arrival-time" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Arrival Time
-              </Label>
-              <Input
-                id="arrival-time"
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
+              <DateTimePicker
+                id="event-date-time"
+                value={eventDate && arrivalTime ? `${eventDate}T${arrivalTime}` : null}
+                onChange={(value) => {
+                  const [date, time] = value?.split("T") ?? ["", ""];
+                  setEventDate(date);
+                  setArrivalTime(time);
+                }}
+                placeholder="Pick event date and arrival time"
               />
             </div>
           </div>
