@@ -57,6 +57,11 @@ export interface EventStatus {
   state: EventWorkflowState
   event_date: string | null
   arrival_time: string | null
+  event_name: string
+  assignment_email_subject: string
+  assignment_email_body: string
+  captain_overview_email_subject: string
+  captain_overview_email_body: string
   updated_at: string
 }
 

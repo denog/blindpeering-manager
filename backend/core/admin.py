@@ -38,8 +38,13 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(EventStatus)
 class EventStatusAdmin(admin.ModelAdmin):
-    list_display = ['id', 'state', 'event_date', 'arrival_time', 'updated_at']
-    fields = ['state', 'event_date', 'arrival_time', 'updated_at']
+    list_display = ['id', 'state', 'event_name', 'event_date', 'arrival_time', 'updated_at']
+    fields = [
+        'state', 'event_name', 'event_date', 'arrival_time',
+        'assignment_email_subject', 'assignment_email_body',
+        'captain_overview_email_subject', 'captain_overview_email_body',
+        'updated_at',
+    ]
     readonly_fields = ['id', 'updated_at']
 
 

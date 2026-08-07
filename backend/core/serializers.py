@@ -101,7 +101,12 @@ class EventStatusSerializer(serializers.ModelSerializer):
     """Serializer for EventStatus model."""
     class Meta:
         model = EventStatus
-        fields = ['id', 'state', 'event_date', 'arrival_time', 'updated_at']
+        fields = [
+            'id', 'state', 'event_date', 'arrival_time', 'event_name',
+            'assignment_email_subject', 'assignment_email_body',
+            'captain_overview_email_subject', 'captain_overview_email_body',
+            'updated_at',
+        ]
         read_only_fields = ['id', 'updated_at']
 
 

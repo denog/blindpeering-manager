@@ -23,17 +23,16 @@ class EmailService:
         self.smtp_host = getattr(settings, "EMAIL_SMTP_HOST", "localhost")
         self.smtp_port = getattr(settings, "EMAIL_SMTP_PORT", 1025)
 
-    def _build_template_data(self, participant, restaurant, captain, table_guests):
+    def _build_template_data(self, event_status, participant, restaurant, captain, table_guests):
         """Build email template data.
 
         Raises:
-            ValueError: If required event settings (event_date, arrival_time) or
-                restaurant reservation_name are not configured.
+            ValueError: If required event settings (event_name, event_date,
+                arrival_time) or restaurant reservation_name are not configured.
         """
-        # Get and validate event settings
-        event_status = EventStatus.get_current()
-
         missing_fields = []
+        if not event_status.event_name:
+            missing_fields.append("event_name")
         if not event_status.event_date:
             missing_fields.append("event_date")
         if not event_status.arrival_time:
@@ -88,6 +87,7 @@ class EmailService:
         )
 
         return {
+            "event_name": event_status.event_name,
             "participant_name": participant.attendee_name,
             "restaurant_name": restaurant.name,
             "restaurant_address": restaurant.address,
@@ -104,40 +104,21 @@ class EmailService:
             "reservation_name": restaurant.reservation_name,
         }
 
-    def _generate_email_content(self, data):
-        """Generate email subject and body."""
-        subject = "Pre-Social - Your Restaurant Assignment"
+    def _render_template(self, subject_template, body_template, data):
+        """Render a subject/body template pair stored on EventStatus.
 
-        body = f"""Dear participant,
-
-We're excited that you join the Pre-Social on {data['event_date']}!
-
-Your assigned restaurant: {data['restaurant_name']}
-Address: {data['restaurant_address']}
-
-How to get there:
-{data['taxi_time']}
-{data['pt_time']} {data['pt_lines']}
-
-Your Table Captain: {data['captain_name']}
-Contact: {data['captain_email']}{data['captain_phone']}
-{data['captain_contact']}
-
-Table Guests:
-{data['table_guests']}
-
-Please arrive by {data['arrival_time']} at the restaurant to ensure we can start on
-time. If you have any questions, please feel free to contact your
-Table Captain directly.
-
-As noted before: this social is self-paid, hence it is advisable to carry cash.
-
-The reservation for the table is under the name "{data['reservation_name']}".
-
-We look forward to a wonderful evening with you!
-
-Best regards,
-Your Event Team"""
+        Raises:
+            ValueError: If the template references a placeholder that isn't
+                available in `data` (e.g. a typo made while editing it).
+        """
+        try:
+            subject = subject_template.format(**data)
+            body = body_template.format(**data)
+        except KeyError as exc:
+            raise ValueError(
+                f"Email template references unknown placeholder {{{exc.args[0]}}}. "
+                f"Available placeholders: {', '.join(sorted(data))}."
+            ) from exc
 
         return subject, body
 
@@ -190,6 +171,7 @@ Your Event Team"""
         """Send assignment email to a participant."""
         participant = Participant.objects.get(id=participant_id)
         restaurant = Restaurant.objects.get(id=restaurant_id)
+        event_status = EventStatus.get_current()
 
         captain = restaurant.assigned_captain
         table_guests = list(
@@ -198,8 +180,14 @@ Your Event Team"""
             )
         )
 
-        data = self._build_template_data(participant, restaurant, captain, table_guests)
-        subject, body = self._generate_email_content(data)
+        data = self._build_template_data(
+            event_status, participant, restaurant, captain, table_guests
+        )
+        subject, body = self._render_template(
+            event_status.assignment_email_subject,
+            event_status.assignment_email_body,
+            data,
+        )
 
         # Send email
         self._send_email(participant.attendee_email, subject, body)
@@ -258,6 +246,13 @@ Your Event Team"""
         if not captain:
             raise ValueError(f"Restaurant '{restaurant.name}' has no assigned captain")
 
+        event_status = EventStatus.get_current()
+        if not event_status.event_name:
+            raise ValueError(
+                "Cannot send email: missing required settings: event_name. "
+                "Please configure this in the admin panel before sending emails."
+            )
+
         # Get all assigned participants (excluding captain)
         table_guests = list(
             Participant.objects.filter(
@@ -277,27 +272,19 @@ Your Event Team"""
             else "No guests assigned yet"
         )
 
-        subject = "Final Guest List for the Blind Peering event!"
-
-        body = f"""Hi,
-
-Thank you again for taking on the role as Table Captain for the Blind Peering event!
-
-After a few adjustments, the participant list is now final and I wanted to share the complete overview of your table with you.
-
-{restaurant.name}
-{restaurant.address}
-
-Captain: {captain.attendee_name} ({captain.attendee_email})
-
-{guests_formatted}
-
-All guests received their table assignmen, so everyone should be aware of the arrangements.
-
-Enjoy the evening!
-
-Best regards,
-Your Event Team"""
+        data = {
+            "event_name": event_status.event_name,
+            "restaurant_name": restaurant.name,
+            "restaurant_address": restaurant.address,
+            "captain_name": captain.attendee_name,
+            "captain_email": captain.attendee_email,
+            "guest_list": guests_formatted,
+        }
+        subject, body = self._render_template(
+            event_status.captain_overview_email_subject,
+            event_status.captain_overview_email_body,
+            data,
+        )
 
         # Send email
         self._send_email(captain.attendee_email, subject, body)

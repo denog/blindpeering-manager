@@ -10,6 +10,7 @@ React + TypeScript dashboard with Django + Django REST Framework backend for run
 - Round-robin participant allocation with capacity checks and manual overrides
 - Pretix integration for participant sync
 - SendGrid email integration for assignment notifications
+- Editable email templates (subject/body, with a placeholder cheat-sheet and reset-to-default) and a configurable event name shared across the UI and outgoing emails
 - CSV/print exports for captain packets
 - Activity log for assignments, imports, and administration actions
 
@@ -167,7 +168,7 @@ python manage.py collectstatic
 | `restaurants`          | Event venues. Tracks address, transport info, capacity, and assigned captain.                     |
 | `participants`         | Pretix attendees. Includes captain flag, contact preferences, and status enum.                    |
 | `assignments`          | Participant-to-restaurant mapping. Unique per participant and includes `assigned_at`.             |
-| `event_status`         | Single-row workflow tracker (`setup`, `captains_assigned`, `participants_assigned`, `finalized`). |
+| `event_status`         | Single-row workflow tracker (`setup`, `captains_assigned`, `participants_assigned`, `finalized`). Also holds the event name, date, arrival time, and the editable email template subject/body pairs. |
 | `event_activity`       | Append-only audit trail for automation steps and manual adjustments.                              |
 | `email_logs`           | Log of sent assignment emails.                                                                    |
 | `restaurant_comments`  | Comments on restaurants.                                                                          |
@@ -182,6 +183,15 @@ python manage.py collectstatic
 3. **Assign all participants** - Round-robin placement prioritising least full restaurant.
 4. **Manual tweaks** - Reassign or unassign participants via the UI.
 5. **Finalize event** - Locks the workflow; all assignment actions become read-only.
+
+## Event Name & Email Templates
+
+The **Event Settings** card on the dashboard sets the event name, date, and arrival time — all three are required before assignment emails can be sent. The **Email Templates** card lets you edit the subject/body of the two outgoing emails and reset either one back to its default:
+
+- **Participant Assignment** — sent to each participant with their restaurant/table details. Placeholders: `event_name`, `event_date`, `arrival_time`, `participant_name`, `restaurant_name`, `restaurant_address`, `reservation_name`, `taxi_time`, `pt_time`, `pt_lines`, `captain_name`, `captain_email`, `captain_phone`, `captain_contact`, `table_guests`.
+- **Captain Overview** — sent to each table captain with their final guest list. Placeholders: `event_name`, `restaurant_name`, `restaurant_address`, `captain_name`, `captain_email`, `guest_list`.
+
+Templates are rendered with Python's `str.format`, so placeholders must be written as `{event_name}`; an unrecognised `{placeholder}` in a saved template will surface as an error the next time an email is sent from it.
 
 ## Exporting Captain Packets
 
@@ -240,6 +250,8 @@ docker compose exec app python manage.py createsuperuser
 | Assignments       | `/api/assignments/`              | GET, POST          |
 | Clear Assignments | `/api/assignments/clear_all/`    | DELETE             |
 | Event Status      | `/api/event-status/`             | GET, PATCH         |
+| Update Event Settings | `/api/event-status/update_state/` | PATCH, PUT     |
+| Reset Email Template | `/api/event-status/reset_email_template/` | POST   |
 | Activity Log      | `/api/activity/`                 | GET, POST          |
 | Email Logs        | `/api/emails/`                   | GET                |
 | Send Email        | `/api/emails/send/`              | POST               |

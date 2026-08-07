@@ -7,6 +7,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+from core import email_templates
+
 
 class ParticipantStatus(models.TextChoices):
     REGISTERED = 'registered', 'Registered'
@@ -155,6 +157,30 @@ class EventStatus(models.Model):
         null=True,
         blank=True,
         help_text='Time guests should arrive (e.g., 19:00)'
+    )
+    event_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Name of the event, available in email templates as {event_name}'
+    )
+    assignment_email_subject = models.CharField(
+        max_length=255,
+        default=email_templates.DEFAULT_ASSIGNMENT_EMAIL_SUBJECT,
+        help_text='Subject line for the participant restaurant assignment email'
+    )
+    assignment_email_body = models.TextField(
+        default=email_templates.DEFAULT_ASSIGNMENT_EMAIL_BODY,
+        help_text='Body for the participant restaurant assignment email'
+    )
+    captain_overview_email_subject = models.CharField(
+        max_length=255,
+        default=email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_SUBJECT,
+        help_text='Subject line for the table captain guest list email'
+    )
+    captain_overview_email_body = models.TextField(
+        default=email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_BODY,
+        help_text='Body for the table captain guest list email'
     )
     updated_at = models.DateTimeField(auto_now=True)
 

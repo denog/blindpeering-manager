@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
 
+from . import email_templates
 from .models import (
     Participant, Restaurant, Assignment, EventStatus,
     EmailLog, RestaurantComment, ParticipantComment
@@ -234,6 +235,33 @@ class EventStatusViewSet(viewsets.ModelViewSet):
         """Update the event workflow state."""
         status_obj = EventStatus.get_current()
         serializer = self.get_serializer(status_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def reset_email_template(self, request):
+        """Reset an email template's subject/body to its default content."""
+        defaults_by_template = {
+            'assignment': {
+                'assignment_email_subject': email_templates.DEFAULT_ASSIGNMENT_EMAIL_SUBJECT,
+                'assignment_email_body': email_templates.DEFAULT_ASSIGNMENT_EMAIL_BODY,
+            },
+            'captain_overview': {
+                'captain_overview_email_subject': email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_SUBJECT,
+                'captain_overview_email_body': email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_BODY,
+            },
+        }
+        template = request.data.get('template')
+        defaults = defaults_by_template.get(template)
+        if defaults is None:
+            return Response(
+                {'detail': f"Invalid template '{template}'. Expected one of: {', '.join(defaults_by_template)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        status_obj = EventStatus.get_current()
+        serializer = self.get_serializer(status_obj, data=defaults, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
