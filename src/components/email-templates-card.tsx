@@ -55,6 +55,7 @@ const ASSIGNMENT_PLACEHOLDERS = [
   "captain_phone",
   "captain_contact",
   "table_guests",
+  "carpool_link",
 ];
 
 const CAPTAIN_OVERVIEW_PLACEHOLDERS = [

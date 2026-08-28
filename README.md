@@ -11,6 +11,7 @@ React + TypeScript dashboard with Django + Django REST Framework backend for run
 - Pretix integration for participant sync
 - SendGrid email integration for assignment notifications
 - Editable email templates (subject/body, with a placeholder cheat-sheet and reset-to-default) and a configurable event name shared across the UI and outgoing emails
+- Public, no-login carpool board per table (magic link in the assignment email) so participants can coordinate rides
 - CSV/print exports for captain packets
 - Activity log for assignments, imports, and administration actions
 
@@ -122,6 +123,10 @@ PRETIX_EVENT=your-event-slug
 PRETIX_ORGANIZER=denog
 PRETIX_CHECKIN_LIST_ID_LOCAL=123
 PRETIX_CHECKIN_LIST_ID_GLOBAL=456
+
+# Carpool board
+FRONTEND_BASE_URL=http://localhost:5173
+CARPOOL_MESSAGE_RETENTION_DAYS=3
 ```
 
 ## User Management
@@ -157,6 +162,15 @@ python manage.py createsuperuser
 # Sync participants from Pretix
 python manage.py sync_pretix
 
+# Delete carpool messages past the retention window (no in-repo scheduler --
+# run this via external cron, same as sync_pretix)
+python manage.py cleanup_expired_carpool_messages
+
+# Rotate every participant's carpool token (invalidates all existing magic
+# links). Add --purge-messages when reusing the installation for a new event
+# to also drop old messages.
+python manage.py rotate_carpool_tokens --purge-messages
+
 # Collect static files (for production)
 python manage.py collectstatic
 ```
@@ -173,6 +187,7 @@ python manage.py collectstatic
 | `email_logs`           | Log of sent assignment emails.                                                                    |
 | `restaurant_comments`  | Comments on restaurants.                                                                          |
 | `participant_comments` | Comments on participants.                                                                         |
+| `carpool_messages`     | Table-scoped carpool coordination messages posted by participants via their magic link.           |
 
 ## Assignment Workflow
 
@@ -188,10 +203,24 @@ python manage.py collectstatic
 
 The **Event Settings** card on the dashboard sets the event name, date, and arrival time — all three are required before assignment emails can be sent. The **Email Templates** card lets you edit the subject/body of the two outgoing emails and reset either one back to its default:
 
-- **Participant Assignment** — sent to each participant with their restaurant/table details. Placeholders: `event_name`, `event_date`, `arrival_time`, `participant_name`, `restaurant_name`, `restaurant_address`, `reservation_name`, `taxi_time`, `pt_time`, `pt_lines`, `captain_name`, `captain_email`, `captain_phone`, `captain_contact`, `table_guests`.
+- **Participant Assignment** — sent to each participant with their restaurant/table details. Placeholders: `event_name`, `event_date`, `arrival_time`, `participant_name`, `restaurant_name`, `restaurant_address`, `reservation_name`, `taxi_time`, `pt_time`, `pt_lines`, `captain_name`, `captain_email`, `captain_phone`, `captain_contact`, `table_guests`, `carpool_link`.
 - **Captain Overview** — sent to each table captain with their final guest list. Placeholders: `event_name`, `restaurant_name`, `restaurant_address`, `captain_name`, `captain_email`, `guest_list`.
 
 Templates are rendered with Python's `str.format`, so placeholders must be written as `{event_name}`; an unrecognised `{placeholder}` in a saved template will surface as an error the next time an email is sent from it.
+
+## Carpool Board
+
+Each participant gets a `{carpool_link}` placeholder in their assignment email — a magic link (`/carpool/<token>/`) to a public, no-login page scoped to their own table, where they can post/read short ride-coordination messages ("driving, room for 2" / "let's meet for public transport at X") and delete their own posts.
+
+This is deliberately an **authorization** feature, not an encryption one: the link's token is a dedicated, unguessable per-participant secret (never reused as/derived from any id exposed elsewhere in the app), and the backend scopes every read/write strictly to the token holder's own table — there is nothing for another table or an outside attacker to access. Organizers keep full moderation ability via the "Carpool messages" section in Django Admin.
+
+Link access expires `CARPOOL_MESSAGE_RETENTION_DAYS` (default 3) days after the event date, and access **fails closed** if no event date is set. Each message is stamped at post time with its own immutable `expires_at` (event date + retention) — later edits to the singleton event date never move an existing message's deadline or resurface one. The board hides messages past their `expires_at` even before cleanup runs; the `cleanup_expired_carpool_messages` command then permanently deletes them (data minimization) regardless of the current event date — schedule it externally, same as `sync_pretix`.
+
+The endpoints are throttled **per magic-link token** (`carpool-read`/`carpool-write` scopes) rather than per IP, so participants sharing venue WiFi/NAT don't share a bucket. A coarse `carpool-ip` scope is a flood backstop; it defaults to 8000/hour (~100 concurrently active participants behind one NAT) — set `CARPOOL_IP_RATE_PER_HOUR` higher for a larger shared-WiFi venue. The frontend board polls every 60s (~60 read req/hour per open page) and keeps showing the last good board through transient refetch failures.
+
+**Reusing the installation for a new event:** run `rotate_carpool_tokens --purge-messages`. Participant rows (and their tokens) survive a Pretix re-sync, so rotation is what stops a previously shared/leaked link from working against the new event, and `--purge-messages` clears old messages that immutable expiry would otherwise still surface at a reused restaurant if the new event is configured before the retention window elapses. If events are always separated by more than `CARPOOL_MESSAGE_RETENTION_DAYS`, messages self-expire and this is moot; there is no per-event board object, so honoring that separation (or running the command) is the operator's responsibility.
+
+**Rollout note:** the `{carpool_link}` placeholder was added to the default assignment email template, but editing a template's default text does not retroactively change an already-saved live template (see "Event Name & Email Templates" above) — after upgrading, add `{carpool_link}` to your current assignment email body yourself, or use "Reset to default."
 
 ## Exporting Captain Packets
 
@@ -255,6 +284,9 @@ docker compose exec app python manage.py createsuperuser
 | Activity Log      | `/api/activity/`                 | GET, POST          |
 | Email Logs        | `/api/emails/`                   | GET                |
 | Send Email        | `/api/emails/send/`              | POST               |
+| Carpool Board (public, token-authenticated) | `/api/carpool/<token>/` | GET     |
+| Carpool Post Message (public) | `/api/carpool/<token>/messages/` | POST     |
+| Carpool Delete Message (public) | `/api/carpool/<token>/messages/<id>/` | DELETE |
 | Login             | `/api/auth/login/`               | POST               |
 | Logout            | `/api/auth/logout/`              | POST               |
 | Session           | `/api/auth/session/`             | GET                |

@@ -100,3 +100,17 @@ export interface ParticipantComment {
   updated_at: string
   created_by_email?: string | null
 }
+
+export interface CarpoolMessage {
+  id: string
+  body: string
+  sender_name: string
+  is_mine: boolean
+  created_at: string
+}
+
+export interface CarpoolBoard {
+  restaurant_name: string
+  participant_name: string
+  messages: CarpoolMessage[]
+}

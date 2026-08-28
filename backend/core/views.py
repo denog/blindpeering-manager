@@ -2,16 +2,21 @@
 DRF ViewSets for core models.
 """
 
+import hashlib
+from datetime import datetime, time, timedelta
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 
 from . import email_templates
 from .models import (
-    Participant, Restaurant, Assignment, EventStatus,
-    EmailLog, RestaurantComment, ParticipantComment
+    Participant, Restaurant, Assignment, EventStatus, CarpoolMessage,
+    EmailLog, RestaurantComment, ParticipantComment, ParticipantStatus
 )
 from .serializers import (
     ParticipantSerializer, RestaurantSerializer, RestaurantListSerializer,
@@ -19,9 +24,12 @@ from .serializers import (
     EmailLogSerializer, RestaurantCommentSerializer,
     ParticipantCommentSerializer, SendEmailRequestSerializer,
     SendBulkEmailsRequestSerializer, PretixSyncResultSerializer,
-    TestEmailRequestSerializer
+    TestEmailRequestSerializer, CarpoolMessageSerializer,
+    CarpoolMessageCreateSerializer,
 )
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import (
+    api_view, authentication_classes, permission_classes, throttle_classes
+)
 
 
 @api_view(['GET'])
@@ -36,6 +44,182 @@ def health_check(request):
         'timestamp': timezone.now(),
         'version': '1.0.0'
     })
+
+
+class CarpoolTokenThrottle(SimpleRateThrottle):
+    """Throttle the carpool endpoints per magic-link token rather than per IP.
+
+    Event participants routinely share venue WiFi/NAT, so an IP-keyed bucket
+    would let a handful of people's page polling (or one bad actor) starve
+    everyone else behind the same address. Keying on the token scopes the
+    bucket to a single participant's board session. Requests with no token in
+    the URL are not throttled here -- the coarse per-IP backstop below covers
+    those and bounds total volume across all tokens at one address.
+    """
+
+    def get_cache_key(self, request, view):
+        token = view.kwargs.get('token')
+        if not token:
+            return None
+        ident = hashlib.sha256(token.encode()).hexdigest()
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+class CarpoolReadThrottle(CarpoolTokenThrottle):
+    scope = 'carpool-read'
+
+
+class CarpoolWriteThrottle(CarpoolTokenThrottle):
+    scope = 'carpool-write'
+
+
+class CarpoolIPThrottle(AnonRateThrottle):
+    """Coarse per-IP backstop for the carpool endpoints.
+
+    Each distinct token gets its own token bucket, so the token throttle alone
+    doesn't bound how many requests one IP can make by cycling tokens. This
+    caps that while staying generous enough for a large shared-NAT venue.
+    """
+
+    scope = 'carpool-ip'
+
+
+def _carpool_board_deadline(event_date):
+    """Immutable instant a carpool board and its messages become inaccessible.
+
+    End of the last retained day, in the project's default timezone. Computed
+    once per request and stamped onto new messages so later edits to the
+    singleton event date can't move an existing message's deadline.
+    """
+    expires_on = event_date + timedelta(days=settings.CARPOOL_MESSAGE_RETENTION_DAYS)
+    return timezone.make_aware(
+        datetime.combine(expires_on, time.max),
+        timezone.get_default_timezone(),
+    )
+
+
+def _resolve_carpool_access(token):
+    """Resolve a carpool magic-link token to its (participant, restaurant).
+
+    Identity and table are derived ONLY from the token -- callers must never
+    accept a client-supplied participant/restaurant id for these endpoints.
+    Returns (participant, restaurant, board_deadline, error_response);
+    error_response is None on success, otherwise the Response the caller
+    should return as-is.
+    """
+    try:
+        participant = Participant.objects.get(carpool_token=token)
+    except Participant.DoesNotExist:
+        return None, None, None, Response(
+            {'detail': 'This carpool link is invalid.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if participant.status == ParticipantStatus.CANCELLED:
+        return None, None, None, Response(
+            {'detail': 'This carpool link is invalid.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    try:
+        restaurant = participant.assignment.restaurant
+    except Assignment.DoesNotExist:
+        # Table captains are linked to their restaurant via
+        # Restaurant.assigned_captain, not an Assignment row (the auto-assigner
+        # skips them), but they still get a carpool link in their email.
+        restaurant = participant.captained_restaurants.first()
+
+    if restaurant is None:
+        return None, None, None, Response(
+            {'detail': "You haven't been assigned to a table yet."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    event_date = EventStatus.get_current().event_date
+    if event_date is None:
+        # Fail closed: without an event date there is no bounded lifetime for
+        # the board, so it must not be reachable (setup phase, or the date was
+        # cleared while reusing the installation for another event).
+        return None, None, None, Response(
+            {'detail': 'This carpool board is not available yet.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    board_deadline = _carpool_board_deadline(event_date)
+    if timezone.now() > board_deadline:
+        return None, None, None, Response(
+            {'detail': 'This carpool board has closed.'},
+            status=status.HTTP_410_GONE,
+        )
+
+    return participant, restaurant, board_deadline, None
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([CarpoolReadThrottle, CarpoolIPThrottle])
+def carpool_board(request, token):
+    """Return the carpool message board for the token holder's table."""
+    participant, restaurant, _board_deadline, error = _resolve_carpool_access(token)
+    if error:
+        return error
+
+    # Hide messages past their own immutable deadline even if the cleanup
+    # command hasn't run yet.
+    messages = restaurant.carpool_messages.filter(
+        expires_at__gt=timezone.now()
+    ).select_related('sender')
+    return Response({
+        'restaurant_name': restaurant.name,
+        'participant_name': participant.attendee_name,
+        'messages': CarpoolMessageSerializer(
+            messages, many=True, context={'viewer': participant}
+        ).data,
+    })
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([CarpoolWriteThrottle, CarpoolIPThrottle])
+def carpool_post_message(request, token):
+    """Post a new carpool message to the token holder's table."""
+    participant, restaurant, board_deadline, error = _resolve_carpool_access(token)
+    if error:
+        return error
+
+    serializer = CarpoolMessageCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    message = CarpoolMessage.objects.create(
+        restaurant=restaurant,
+        sender=participant,
+        body=serializer.validated_data['body'],
+        expires_at=board_deadline,
+    )
+    return Response(
+        CarpoolMessageSerializer(message, context={'viewer': participant}).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['DELETE'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([CarpoolWriteThrottle, CarpoolIPThrottle])
+def carpool_delete_message(request, token, message_id):
+    """Delete a carpool message the token holder posted themselves."""
+    participant, restaurant, _board_deadline, error = _resolve_carpool_access(token)
+    if error:
+        return error
+
+    deleted, _ = CarpoolMessage.objects.filter(
+        id=message_id, sender=participant
+    ).delete()
+    if not deleted:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ParticipantViewSet(viewsets.ModelViewSet):

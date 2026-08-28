@@ -88,6 +88,7 @@ class EmailService:
 
         return {
             "event_name": event_status.event_name,
+            "carpool_link": f"{settings.FRONTEND_BASE_URL}/carpool/{participant.carpool_token}",
             "participant_name": participant.attendee_name,
             "restaurant_name": restaurant.name,
             "restaurant_address": restaurant.address,

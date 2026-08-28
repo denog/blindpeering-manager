@@ -27,6 +27,9 @@ Contact: {captain_email}{captain_phone}
 Table Guests:
 {table_guests}
 
+Want to carpool or share a ride with your table? Coordinate here:
+{carpool_link}
+
 Please arrive by {arrival_time} at the restaurant to ensure we can start on
 time. If you have any questions, please feel free to contact your
 Table Captain directly.
