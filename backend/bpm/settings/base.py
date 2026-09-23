@@ -96,7 +96,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# WhiteNoise serves STATIC_ROOT: backend statics collected at image build time
+# (admin, DRF) plus the pre-hashed Vite SPA bundle copied in by the Dockerfile.
+# Deliberately NOT a manifest storage: the SPA's index.html is not rendered
+# through {% static %}, so hashed-name resolution would 404 the Vite assets.
+# (The old STATICFILES_STORAGE setting was removed in Django 5.1.)
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

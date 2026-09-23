@@ -1,0 +1,29 @@
+# Opt-in override: attaches the app to the host's shared reverse-proxy
+# network so a containerized Caddy (running in another compose stack) can
+# reach it by DNS name.
+#
+# Enable via .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
+#   PROXY_NETWORK=proxy                # name of the external network
+#
+# The Caddy upstream is then either
+#   ${APP_CONTAINER_NAME}:${APP_PORT}  (e.g. bpm-app:8080)
+# or the alias
+#   ${APP_NETWORK_ALIAS}:${APP_PORT}   (e.g. bpm:8080)
+#
+# To match an existing Caddy config expecting e.g. blindpeering-app:8000,
+# set in .env: APP_CONTAINER_NAME=blindpeering-app and APP_PORT=8000.
+services:
+  app:
+    networks:
+      default:
+        aliases:
+          - ${APP_NETWORK_ALIAS:-bpm}
+      proxy:
+        aliases:
+          - ${APP_NETWORK_ALIAS:-bpm}
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

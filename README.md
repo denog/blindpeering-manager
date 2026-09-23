@@ -231,40 +231,112 @@ Use the **Export rosters** button on the dashboard or assignments page:
 
 ## Production Deployment
 
-### Build Docker Image
+The production image is built directly on the host by Docker Compose — no
+workstation build, image archive, or SCP step. The container entrypoint runs
+Django migrations automatically before gunicorn starts (controlled by
+`AUTO_MIGRATE`), so pulling and recreating is a complete deployment.
+
+### Initial Deployment
 
 ```bash
-export DOCKER_BUILDKIT=1
-docker buildx build --platform linux/amd64 --secret id=env_file,src=.env -t bpm:latest --load .
-docker save bpm:latest | gzip > bpm.tar.gz
-scp bpm.tar.gz root@your-server:/path/to/bpm/
+# On the production host
+git clone YOUR_REPOSITORY_URL bpm
+cd bpm
+
+# Create and edit the production configuration before building or starting.
+cp .env.example .env
+${EDITOR:-vi} .env   # secrets, ALLOWED_HOSTS, FRONTEND_BASE_URL, proxy knobs
+
+docker compose up -d --build
+
+# One-time setup for a new installation.
+docker compose exec app python manage.py createsuperuser
 ```
 
-### On Server
+### Deploying Updates
 
 ```bash
-# Load the image
-docker load < bpm.tar.gz
+./deploy.sh
+```
 
-# Create .env file with production values
-cat > .env << EOF
-DJANGO_SECRET_KEY=your-production-secret-key
-POSTGRES_DB=bpm_prod
-POSTGRES_USER=bpm_prod
-POSTGRES_PASSWORD=your-secure-password
-ALLOWED_HOSTS=your-domain.com
-SENDGRID_API_KEY=your-api-key
-# ... other env vars
-EOF
+or equivalently by hand — the old container keeps serving while the new image
+builds, so downtime is limited to the container swap plus migrations:
 
-# Start services
-docker compose up -d
+```bash
+git pull --ff-only
+docker compose up -d --build
+```
 
-# Run migrations
-docker compose exec app python manage.py migrate
+To manage migrations manually instead, set `AUTO_MIGRATE=false` in `.env` and
+run `docker compose run --rm app python manage.py migrate` before `up -d`.
 
-# Create admin user
-docker compose exec app python manage.py createsuperuser
+**Rollback:** `git checkout <previous-rev> && docker compose up -d --build`.
+Down-migrations are never run automatically.
+
+### Reverse Proxy (Caddy)
+
+The app is not meant to be exposed publicly: by default compose publishes it
+on `127.0.0.1:8080` only. Production settings trust the proxy's
+`X-Forwarded-Proto` header (TLS terminates at the proxy), and
+`FRONTEND_BASE_URL` seeds `CSRF_TRUSTED_ORIGINS` — set it to the canonical
+public origin and list the public hostname(s) in `ALLOWED_HOSTS`.
+
+The DNS name and port the proxy uses to reach the app are configurable via
+`.env`, so an existing Caddy configuration can be matched **without editing
+compose files**:
+
+| Caddy upstream          | `.env` values                                            |
+| ----------------------- | -------------------------------------------------------- |
+| `bpm:8080`              | defaults (alias via `APP_NETWORK_ALIAS=bpm`)             |
+| `bpm-app:8080`          | defaults (`APP_CONTAINER_NAME=bpm-app`)                  |
+| `blindpeering-app:8000` | `APP_CONTAINER_NAME=blindpeering-app`, `APP_PORT=8000`   |
+
+`APP_PORT` is the port gunicorn binds *inside the container* — this is the
+upstream port when proxying over a Docker network. `APP_BIND_ADDR` /
+`APP_HOST_PORT` only control the loopback host publishing (for debugging).
+
+**Caddy on the host** — proxy to the loopback publish:
+
+```
+reverse_proxy 127.0.0.1:8080
+```
+
+**Caddy as a container in another stack** — share a Docker network with this
+stack via the opt-in override `docker-compose.proxy.yml`:
+
+```bash
+docker network create proxy   # once per host
+```
+
+`.env`:
+
+```dotenv
+COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml
+PROXY_NETWORK=proxy
+APP_CONTAINER_NAME=bpm-app
+APP_PORT=8080
+```
+
+Then `docker compose up -d` as usual, and in the Caddyfile:
+
+```
+reverse_proxy bpm-app:8080   # ${APP_CONTAINER_NAME}:${APP_PORT}
+```
+
+### Health & Monitoring
+
+- `GET /api/health/` — unauthenticated; also used by the compose healthcheck
+  on the app container.
+- `docker compose ps` shows the app as `healthy`; migrations and startup
+  output appear in `docker compose logs app`.
+
+### Scheduled Tasks
+
+`sync_pretix` and `cleanup_expired_carpool_messages` have no in-container
+scheduler — run them from the host cron:
+
+```cron
+15 4 * * * cd /path/to/bpm && docker compose exec -T app python manage.py cleanup_expired_carpool_messages
 ```
 
 ## API Endpoints
