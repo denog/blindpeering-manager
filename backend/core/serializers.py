@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from .models import (
     Participant, Restaurant, Assignment, EventStatus,
     EmailLog, RestaurantComment, ParticipantComment,
-    EmailType
+    CarpoolMessage, EmailType
 )
 
 
@@ -19,10 +19,21 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ParticipantSerializer(serializers.ModelSerializer):
-    """Serializer for Participant model."""
+    """Serializer for Participant model.
+
+    Explicit field list (not `__all__`): `carpool_token` must never be
+    serialized here. It's the bearer secret for the public carpool magic
+    link, and this serializer is nested into staff-facing Assignment/
+    Restaurant responses that everyone with a login can read.
+    """
     class Meta:
         model = Participant
-        fields = '__all__'
+        fields = [
+            'id', 'pretix_id', 'given_name', 'family_name', 'attendee_name',
+            'attendee_email', 'is_table_captain', 'captain_phone',
+            'captain_preferred_contact', 'status', 'manual_status_override',
+            'manual_email_override', 'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
@@ -101,8 +112,33 @@ class EventStatusSerializer(serializers.ModelSerializer):
     """Serializer for EventStatus model."""
     class Meta:
         model = EventStatus
-        fields = ['id', 'state', 'event_date', 'arrival_time', 'updated_at']
+        fields = [
+            'id', 'state', 'event_date', 'arrival_time', 'event_name',
+            'assignment_email_subject', 'assignment_email_body',
+            'captain_overview_email_subject', 'captain_overview_email_body',
+            'updated_at',
+        ]
         read_only_fields = ['id', 'updated_at']
+
+
+class CarpoolMessageSerializer(serializers.ModelSerializer):
+    """Serializer for CarpoolMessage model, as returned to a participant."""
+    sender_name = serializers.CharField(source='sender.attendee_name', read_only=True)
+    is_mine = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CarpoolMessage
+        fields = ['id', 'body', 'sender_name', 'is_mine', 'created_at']
+        read_only_fields = fields
+
+    def get_is_mine(self, obj):
+        viewer = self.context.get('viewer')
+        return viewer is not None and obj.sender_id == viewer.id
+
+
+class CarpoolMessageCreateSerializer(serializers.Serializer):
+    """Request serializer for posting a carpool message."""
+    body = serializers.CharField(max_length=500, allow_blank=False, trim_whitespace=True)
 
 
 class EmailLogSerializer(serializers.ModelSerializer):

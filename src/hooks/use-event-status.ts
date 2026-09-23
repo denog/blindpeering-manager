@@ -29,6 +29,11 @@ const DEFAULT_STATE: EventStatus = {
   state: "setup",
   event_date: null,
   arrival_time: null,
+  event_name: "",
+  assignment_email_subject: "",
+  assignment_email_body: "",
+  captain_overview_email_subject: "",
+  captain_overview_email_body: "",
   updated_at: new Date(0).toISOString(),
 }
 
@@ -43,10 +48,21 @@ async function updateEventStatus(state: EventWorkflowState): Promise<EventStatus
 export interface EventSettingsPayload {
   event_date?: string | null
   arrival_time?: string | null
+  event_name?: string
+  assignment_email_subject?: string
+  assignment_email_body?: string
+  captain_overview_email_subject?: string
+  captain_overview_email_body?: string
 }
 
 async function updateEventSettings(settings: EventSettingsPayload): Promise<EventStatus> {
   return api.patch<EventStatus>('/event-status/update_state/', settings)
+}
+
+export type EmailTemplateKey = "assignment" | "captain_overview"
+
+async function resetEmailTemplate(template: EmailTemplateKey): Promise<EventStatus> {
+  return api.post<EventStatus>('/event-status/reset_email_template/', { template })
 }
 
 export function useEventStatus() {
@@ -71,6 +87,13 @@ export function useEventStatus() {
     },
   })
 
+  const resetEmailTemplateMutation = useMutation({
+    mutationFn: resetEmailTemplate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.eventStatus.all })
+    },
+  })
+
   return {
     /** Current event status including workflow state */
     eventStatus: eventStatusQuery.data ?? DEFAULT_STATE,
@@ -78,9 +101,11 @@ export function useEventStatus() {
     isLoading: eventStatusQuery.isLoading,
     /** Manually refetch event status */
     refetch: eventStatusQuery.refetch,
+    /** Reset an email template's subject/body to its default content */
+    resetEmailTemplateMutation,
     /** Update the workflow state */
     setEventStatusMutation,
-    /** Update event settings (date, time) */
+    /** Update event settings (date, time, name, email templates) */
     updateSettingsMutation,
   }
 }

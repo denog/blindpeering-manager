@@ -20,4 +20,7 @@ export const queryKeys = {
     all: ["participant-comments"] as const,
     byParticipant: (participantId: string) => ["participant-comments", participantId] as const,
   },
+  carpool: {
+    byToken: (token: string) => ["carpool", token] as const,
+  },
 }

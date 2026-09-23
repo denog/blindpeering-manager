@@ -3,6 +3,7 @@
  *
  * Displays event settings in read-only mode with an edit button
  * that opens a modal for editing:
+ * - Event name
  * - Event date
  * - Arrival time
  *
@@ -10,7 +11,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { Calendar, Clock, Pencil, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, Pencil, AlertTriangle, Tag } from "lucide-react";
 
 import { useEventStatus } from "@/hooks/use-event-status";
 import { useRestaurants } from "@/hooks/use-restaurants";
@@ -24,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -61,18 +63,21 @@ export function EventSettingsCard() {
   const { restaurants } = useRestaurants();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
 
   // Sync form state when dialog opens
   useEffect(() => {
     if (isDialogOpen) {
+      setEventName(eventStatus.event_name);
       setEventDate(eventStatus.event_date ?? "");
       setArrivalTime(eventStatus.arrival_time ?? "");
     }
-  }, [isDialogOpen, eventStatus.event_date, eventStatus.arrival_time]);
+  }, [isDialogOpen, eventStatus.event_name, eventStatus.event_date, eventStatus.arrival_time]);
 
-  const isConfigured = eventStatus.event_date && eventStatus.arrival_time;
+  const isConfigured =
+    eventStatus.event_name && eventStatus.event_date && eventStatus.arrival_time;
 
   // Check for restaurants missing reservation names
   const restaurantsMissingReservationName = useMemo(
@@ -83,6 +88,7 @@ export function EventSettingsCard() {
   const handleSave = async () => {
     try {
       await updateSettingsMutation.mutateAsync({
+        event_name: eventName,
         event_date: eventDate || null,
         arrival_time: arrivalTime || null,
       });
@@ -120,7 +126,7 @@ export function EventSettingsCard() {
                 )}
               </CardTitle>
               <CardDescription>
-                Event date and arrival time for assignment emails.
+                Event name, date, and arrival time for assignment emails.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(true)}>
@@ -131,6 +137,15 @@ export function EventSettingsCard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Event Name
+              </p>
+              <p className={`font-medium ${!eventStatus.event_name ? "text-muted-foreground" : ""}`}>
+                {eventStatus.event_name || "Not set"}
+              </p>
+            </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -172,32 +187,36 @@ export function EventSettingsCard() {
           <DialogHeader>
             <DialogTitle>Edit Event Settings</DialogTitle>
             <DialogDescription>
-              Configure the event date and arrival time. These are required for sending assignment emails.
+              Configure the event name, date, and arrival time. These are required for sending assignment emails.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="event-date" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Event Date
+              <Label htmlFor="event-name" className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Event Name
               </Label>
               <Input
-                id="event-date"
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
+                id="event-name"
+                placeholder="e.g. DENOG17 Pre-Social"
+                value={eventName}
+                onChange={(e) => setEventName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="arrival-time" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Arrival Time
+              <Label htmlFor="event-date-time" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Event Date &amp; Arrival Time
               </Label>
-              <Input
-                id="arrival-time"
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
+              <DateTimePicker
+                id="event-date-time"
+                value={eventDate && arrivalTime ? `${eventDate}T${arrivalTime}` : null}
+                onChange={(value) => {
+                  const [date, time] = value?.split("T") ?? ["", ""];
+                  setEventDate(date);
+                  setArrivalTime(time);
+                }}
+                placeholder="Pick event date and arrival time"
               />
             </div>
           </div>

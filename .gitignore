@@ -37,3 +37,6 @@ dist-ssr
 *.sw?
 
 bpm-frontend.tar.gz
+.serena/
+.tanstack/
+.claude/settings.local.json

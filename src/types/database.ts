@@ -57,6 +57,11 @@ export interface EventStatus {
   state: EventWorkflowState
   event_date: string | null
   arrival_time: string | null
+  event_name: string
+  assignment_email_subject: string
+  assignment_email_body: string
+  captain_overview_email_subject: string
+  captain_overview_email_body: string
   updated_at: string
 }
 
@@ -94,4 +99,18 @@ export interface ParticipantComment {
   created_at: string
   updated_at: string
   created_by_email?: string | null
+}
+
+export interface CarpoolMessage {
+  id: string
+  body: string
+  sender_name: string
+  is_mine: boolean
+  created_at: string
+}
+
+export interface CarpoolBoard {
+  restaurant_name: string
+  participant_name: string
+  messages: CarpoolMessage[]
 }

@@ -2,10 +2,23 @@
 Core models for the BPM application.
 """
 
+import secrets
 import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+
+from core import email_templates
+
+
+def generate_carpool_token():
+    """Unguessable, single-purpose bearer token for the participant carpool magic link.
+
+    Must never be reused for any other purpose (e.g. as a lookup id returned by
+    staff-facing endpoints) since knowing it grants carpool-board access with no
+    further authentication.
+    """
+    return secrets.token_urlsafe(32)
 
 
 class ParticipantStatus(models.TextChoices):
@@ -60,6 +73,13 @@ class Participant(TimestampedModel):
     manual_email_override = models.BooleanField(
         default=False,
         help_text='True if email was manually changed and should not be overridden by Pretix sync'
+    )
+    carpool_token = models.CharField(
+        max_length=43,
+        unique=True,
+        editable=False,
+        default=generate_carpool_token,
+        help_text='Unguessable bearer token for the participant carpool magic link'
     )
 
     class Meta:
@@ -138,6 +158,43 @@ class Assignment(models.Model):
         return f"{self.participant} -> {self.restaurant}"
 
 
+class CarpoolMessage(TimestampedModel):
+    """Table-scoped carpool coordination message posted by a participant."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    restaurant = models.ForeignKey(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name='carpool_messages'
+    )
+    sender = models.ForeignKey(
+        Participant,
+        on_delete=models.CASCADE,
+        related_name='carpool_messages'
+    )
+    body = models.CharField(max_length=500)
+    expires_at = models.DateTimeField(
+        editable=False,
+        help_text=(
+            'Immutable hard-delete / hide deadline, stamped from the event date '
+            'plus the retention window at the moment the message is posted. '
+            'Deliberately not recomputed when the singleton event date later '
+            'changes, so editing or clearing that date cannot resurface or '
+            'leak messages from a previous event into a reused installation.'
+        )
+    )
+
+    class Meta:
+        db_table = 'carpool_messages'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['restaurant']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"Carpool message from {self.sender} at {self.restaurant}"
+
+
 class EventStatus(models.Model):
     """Singleton model for tracking event workflow state and settings."""
     id = models.CharField(max_length=50, primary_key=True, default='default')
@@ -155,6 +212,30 @@ class EventStatus(models.Model):
         null=True,
         blank=True,
         help_text='Time guests should arrive (e.g., 19:00)'
+    )
+    event_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Name of the event, available in email templates as {event_name}'
+    )
+    assignment_email_subject = models.CharField(
+        max_length=255,
+        default=email_templates.DEFAULT_ASSIGNMENT_EMAIL_SUBJECT,
+        help_text='Subject line for the participant restaurant assignment email'
+    )
+    assignment_email_body = models.TextField(
+        default=email_templates.DEFAULT_ASSIGNMENT_EMAIL_BODY,
+        help_text='Body for the participant restaurant assignment email'
+    )
+    captain_overview_email_subject = models.CharField(
+        max_length=255,
+        default=email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_SUBJECT,
+        help_text='Subject line for the table captain guest list email'
+    )
+    captain_overview_email_body = models.TextField(
+        default=email_templates.DEFAULT_CAPTAIN_OVERVIEW_EMAIL_BODY,
+        help_text='Body for the table captain guest list email'
     )
     updated_at = models.DateTimeField(auto_now=True)
 

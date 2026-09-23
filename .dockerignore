@@ -17,7 +17,7 @@ build
 
 # Docker
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
 .dockerignore
 
 # IDE
@@ -37,10 +37,24 @@ coverage
 
 # Misc
 *.log
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+
+# Secrets & local environment (never bake real env files into images/layers)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Python dev artifacts
+backend/venv
+**/__pycache__
+*.pyc
+
+# Local AI/editor tooling
+.serena
+.claude
+.tanstack
 
 # Documentation
 README.md

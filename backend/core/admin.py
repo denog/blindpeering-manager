@@ -4,7 +4,7 @@ Django Admin configuration for core models.
 
 from django.contrib import admin
 from .models import (
-    Participant, Restaurant, Assignment, EventStatus,
+    Participant, Restaurant, Assignment, EventStatus, CarpoolMessage,
     EmailLog, RestaurantComment, ParticipantComment
 )
 
@@ -38,9 +38,29 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(EventStatus)
 class EventStatusAdmin(admin.ModelAdmin):
-    list_display = ['id', 'state', 'event_date', 'arrival_time', 'updated_at']
-    fields = ['state', 'event_date', 'arrival_time', 'updated_at']
+    list_display = ['id', 'state', 'event_name', 'event_date', 'arrival_time', 'updated_at']
+    fields = [
+        'state', 'event_name', 'event_date', 'arrival_time',
+        'assignment_email_subject', 'assignment_email_body',
+        'captain_overview_email_subject', 'captain_overview_email_body',
+        'updated_at',
+    ]
     readonly_fields = ['id', 'updated_at']
+
+
+@admin.register(CarpoolMessage)
+class CarpoolMessageAdmin(admin.ModelAdmin):
+    list_display = ['restaurant', 'sender', 'body', 'created_at', 'expires_at']
+    list_filter = ['restaurant']
+    search_fields = ['body', 'sender__attendee_name', 'restaurant__name']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'expires_at']
+
+    def has_add_permission(self, request):
+        # Carpool messages are only ever authored by participants through the
+        # token-authenticated API, which stamps the immutable expires_at. There
+        # is no sensible value for that field in a manual admin form, so adding
+        # here is disabled -- staff moderation is view/delete only.
+        return False
 
 
 @admin.register(EmailLog)

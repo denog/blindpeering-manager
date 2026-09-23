@@ -2,6 +2,7 @@ import { useEventStatus } from "@/hooks/use-event-status";
 
 import { Badge } from "@/components/ui/badge";
 import { EventSettingsCard } from "@/components/event-settings-card";
+import { EmailTemplatesCard } from "@/components/email-templates-card";
 import {
   ParticipantsStatCard,
   CaptainsStatCard,
@@ -37,6 +38,8 @@ export function DashboardOverview() {
       </div>
 
       <EventSettingsCard />
+
+      <EmailTemplatesCard />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ParticipantsStatCard />

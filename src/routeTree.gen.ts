@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as EmailsRouteImport } from './routes/emails'
 import { Route as AssignmentsRouteImport } from './routes/assignments'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CarpoolTokenRouteImport } from './routes/carpool.$token'
 
 const RestaurantsRoute = RestaurantsRouteImport.update({
   id: '/restaurants',
@@ -46,6 +47,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CarpoolTokenRoute = CarpoolTokenRouteImport.update({
+  id: '/carpool/$token',
+  path: '/carpool/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/people': typeof PeopleRoute
   '/restaurants': typeof RestaurantsRoute
+  '/carpool/$token': typeof CarpoolTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/people': typeof PeopleRoute
   '/restaurants': typeof RestaurantsRoute
+  '/carpool/$token': typeof CarpoolTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/people': typeof PeopleRoute
   '/restaurants': typeof RestaurantsRoute
+  '/carpool/$token': typeof CarpoolTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,8 +90,16 @@ export interface FileRouteTypes {
     | '/login'
     | '/people'
     | '/restaurants'
+    | '/carpool/$token'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assignments' | '/emails' | '/login' | '/people' | '/restaurants'
+  to:
+    | '/'
+    | '/assignments'
+    | '/emails'
+    | '/login'
+    | '/people'
+    | '/restaurants'
+    | '/carpool/$token'
   id:
     | '__root__'
     | '/'
@@ -91,6 +108,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/people'
     | '/restaurants'
+    | '/carpool/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -100,6 +118,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PeopleRoute: typeof PeopleRoute
   RestaurantsRoute: typeof RestaurantsRoute
+  CarpoolTokenRoute: typeof CarpoolTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -146,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/carpool/$token': {
+      id: '/carpool/$token'
+      path: '/carpool/$token'
+      fullPath: '/carpool/$token'
+      preLoaderRoute: typeof CarpoolTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PeopleRoute: PeopleRoute,
   RestaurantsRoute: RestaurantsRoute,
+  CarpoolTokenRoute: CarpoolTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
