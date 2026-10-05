@@ -68,4 +68,7 @@ supabase
 .github
 .gitlab-ci.yml
 
-postgresdata
+postgresdata*
+
+# pnpm store created by the dev stack frontend container
+.pnpm-store

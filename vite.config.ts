@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => ({
 
     port: 5173,
 
+    // Extra Host headers to accept, e.g. when served through the dev gateway
+    // behind a public hostname (docker-compose.dev.remote.yml).
+    allowedHosts: process.env.DEV_ALLOWED_HOSTS?.split(',').filter(Boolean),
+
     proxy: {
 
       '/api': {

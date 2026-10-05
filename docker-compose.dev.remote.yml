@@ -1,0 +1,24 @@
+# Remote override for the dev stack: puts the gateway on the reverse proxy's
+# network under the name Caddy expects (APP_CONTAINER_NAME:8000, e.g.
+# blindpeering-app:8000), replacing the production app for testing.
+#
+#   docker compose down    # stop production first (it holds that name)
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.remote.yml up -d --build
+#
+# Uses from .env: APP_CONTAINER_NAME, PROXY_NETWORK, FRONTEND_BASE_URL.
+services:
+  gateway:
+    container_name: ${APP_CONTAINER_NAME:-bpm-app}
+    networks:
+      - default
+      - proxy
+
+  frontend:
+    environment:
+      # Vite rejects unknown Host headers; allow the public hostname.
+      DEV_ALLOWED_HOSTS: ${DEV_ALLOWED_HOSTS:-.denog.de}
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

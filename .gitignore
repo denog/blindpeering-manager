@@ -40,4 +40,7 @@ bpm-frontend.tar.gz
 .serena/
 .tanstack/
 .claude/settings.local.json
-postgresdata/
+postgresdata*/
+
+# pnpm store created by the dev stack frontend container
+.pnpm-store/

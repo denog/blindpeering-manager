@@ -90,7 +90,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </Button>
             <div className="flex h-16 w-16 items-center justify-center rounded-lg">
               <img
-                src="favicon.svg"
+                src={`${import.meta.env.BASE_URL}favicon.svg`}
                 alt="Blind Peering logo"
                 className="h-8 w-8 object-contain"
               />

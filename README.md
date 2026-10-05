@@ -71,7 +71,7 @@ For local development, emails are caught by [Mailpit](https://mailpit.axllent.or
 docker compose -f docker-compose.dev.yml up -d db mailpit
 ```
 
-Access the Mailpit web UI at `http://localhost:8025` to view all emails sent by the application.
+Access the Mailpit web UI at `http://localhost:8025/mailpit/` to view all emails sent by the application.
 
 When running Django locally (outside Docker), set the SMTP host in your environment:
 
@@ -82,20 +82,49 @@ export EMAIL_SMTP_PORT=1025
 
 ### Alternative: Run everything with Docker Compose
 
+`docker-compose.dev.yml` runs the full stack (Postgres, Mailpit, Django
+runserver, Vite with hot reload) behind an nginx gateway on one origin:
+
+| Path        | Service                          |
+| ----------- | -------------------------------- |
+| `/`         | Vite dev server (React app)      |
+| `/api/`     | Django API                       |
+| `/admin/`   | Django admin                     |
+| `/mailpit/` | Mailpit (all emails sent by app) |
+
 ```bash
-# Start PostgreSQL, Django, and Mailpit
-docker compose -f docker-compose.dev.yml up -d
-
-# Run migrations inside the container
-docker compose -f docker-compose.dev.yml exec django python manage.py migrate
-
-# Create admin user
+docker compose -f docker-compose.dev.yml up -d --build   # migrations run on start
 docker compose -f docker-compose.dev.yml exec django python manage.py createsuperuser
-
-# Start frontend
-pnpm install
-pnpm dev
 ```
+
+The app is at `http://localhost:8000` (set `FRONTEND_BASE_URL=http://localhost:8000`
+in `.env` so carpool links in emails match). Code is bind-mounted, so edits and
+`git pull` take effect without a rebuild. Host ports can be moved with
+`DEV_HOST_PORT`, `DEV_DB_PORT`, `DEV_MAILPIT_UI_PORT` and `DEV_SMTP_PORT`.
+
+### Test Stack on the Dev Server
+
+The same stack can replace the production app on a server behind the shared
+Caddy, so peers can test at the public URL without real emails going out.
+`docker-compose.dev.remote.yml` attaches the gateway to the proxy network as
+`${APP_CONTAINER_NAME}:8000` (e.g. `blindpeering-app:8000`). It reads
+`APP_CONTAINER_NAME`, `PROXY_NETWORK` and `FRONTEND_BASE_URL` from `.env`.
+
+```bash
+DEV="-f docker-compose.dev.yml -f docker-compose.dev.remote.yml"
+
+docker compose down                    # stop production (frees the container name)
+docker compose $DEV up -d --build
+docker compose $DEV exec django python manage.py createsuperuser
+
+# back to production
+docker compose $DEV down && docker compose up -d
+```
+
+The dev stack keeps its own database in `postgresdata-dev/`. It runs with
+`DEBUG=True` and Mailpit is public at `/mailpit/`, so only use it with test
+data. Set `MAILPIT_UI_AUTH=user:password` in `.env` to put the Mailpit UI
+behind basic auth.
 
 ## Environment Variables
 

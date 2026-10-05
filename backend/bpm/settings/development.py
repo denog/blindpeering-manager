@@ -3,6 +3,7 @@ Development settings for bpm project.
 """
 
 import os
+from urllib.parse import urlparse
 
 from .base import *  # noqa: F401, F403
 
@@ -26,6 +27,19 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
 ]
+
+# Public origin when the dev stack runs behind a proxy (docker-compose.dev.yml
+# gateway, optionally behind Caddy): accept its host and origin.
+_public = urlparse(FRONTEND_BASE_URL)  # noqa: F405
+if _public.hostname:
+    ALLOWED_HOSTS.append(_public.hostname)
+    _origin = f'{_public.scheme}://{_public.netloc}'
+    for _origins in (CORS_ALLOWED_ORIGINS, CSRF_TRUSTED_ORIGINS):
+        if _origin not in _origins:
+            _origins.append(_origin)
+# The gateway forwards the outer proxy's scheme (TLS terminates at Caddy).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False  # Allow JS to read it for API calls
 
