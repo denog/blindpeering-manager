@@ -67,3 +67,5 @@ supabase
 # CI/CD
 .github
 .gitlab-ci.yml
+
+postgresdata

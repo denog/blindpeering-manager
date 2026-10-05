@@ -40,3 +40,4 @@ bpm-frontend.tar.gz
 .serena/
 .tanstack/
 .claude/settings.local.json
+postgresdata/
