@@ -1,0 +1,93 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> &rsaquo; Backup
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <fieldset class="module aligned">
+    <h2>Export</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="export">
+      <div class="form-row">
+        <p>Download the selected tables as one JSON file. Users/passwords are not included.</p>
+        {% for t in tables %}
+          <label style="display:inline-block;margin-right:1em">
+            <input type="checkbox" name="tables" value="{{ t }}" checked> {{ t }}
+          </label>
+        {% endfor %}
+      </div>
+      <div class="submit-row" style="justify-content:flex-start">
+        <input type="submit" class="default" value="Download backup">
+      </div>
+    </form>
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>Import</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="import">
+      <div class="form-row">
+        <label for="id_file">Backup file:</label>
+        <input type="file" name="file" id="id_file" accept=".json,application/json" required>
+      </div>
+      <div class="form-row">
+        <label>Mode:</label>
+        <div>
+          <label><input type="radio" name="mode" value="merge" checked>
+            <strong>merge</strong> &ndash; overwrite rows with the same ID, insert new ones, delete nothing</label><br>
+          <label><input type="radio" name="mode" value="restore">
+            <strong>restore</strong> &ndash; empty the selected tables, then load the file (full rollback)</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Tables:</label>
+        <div>
+          <p class="help">Leave all unchecked to import every table contained in the file.</p>
+          {% for t in tables %}
+            <label style="display:inline-block;margin-right:1em">
+              <input type="checkbox" name="tables" value="{{ t }}"> {{ t }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-row">
+        <label><input type="checkbox" name="dry_run" checked> Dry run (validate and roll back)</label>
+      </div>
+      <p class="help" style="color:#ba2121">
+        Download a fresh backup before a real import. Everything runs in one transaction &ndash;
+        on any error nothing is changed. In <em>restore</em> mode, deleting participants or restaurants
+        also removes their dependent rows (assignments, comments, emails, carpool messages) unless those
+        tables are imported too.
+      </p>
+      <div class="submit-row" style="justify-content:flex-start">
+        <input type="submit" class="default" value="Import">
+      </div>
+    </form>
+  </fieldset>
+
+  {% if result %}
+  <fieldset class="module">
+    <h2>Result{% if result.dry_run %} (dry run &ndash; rolled back){% endif %}</h2>
+    <table>
+      <thead><tr><th>Table</th><th>Deleted</th><th>Loaded</th></tr></thead>
+      <tbody>
+      {% for t, d, n in result_rows %}
+        <tr><td>{{ t }}</td><td>{{ d }}</td><td>{{ n }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p>Mode: {{ result.mode }} &middot; Source exported at: {{ result.source_exported_at }}
+      &middot; Source migration: {{ result.source_core_migration }} &middot; Current migration: {{ result.current_core_migration }}
+      {% if result.authors_cleared %}&middot; {{ result.authors_cleared }} comment author(s) unknown here, set to empty{% endif %}</p>
+  </fieldset>
+  {% endif %}
+
+</div>
+{% endblock %}

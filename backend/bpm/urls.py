@@ -7,7 +7,10 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.views.generic import TemplateView
 
+from core.admin_backup import backup_view
+
 urlpatterns = [
+    path('admin/backup/', admin.site.admin_view(backup_view), name='admin-backup'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/', include('core.urls')),

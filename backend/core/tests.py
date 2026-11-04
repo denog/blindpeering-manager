@@ -301,3 +301,115 @@ class CarpoolBoardTests(APITestCase):
 
         model_admin = CarpoolMessageAdmin(CarpoolMessage, site)
         self.assertFalse(model_admin.has_add_permission(request=None))
+
+
+class BackupTests(TestCase):
+    def setUp(self):
+        from core.models import EmailLog, ParticipantComment
+        self.admin = User.objects.create_superuser('admin', 'a@example.com', 'pw')
+        status_obj = EventStatus.get_current()
+        status_obj.event_name = 'Original'
+        status_obj.save()
+        self.captain = Participant.objects.create(
+            given_name='C', family_name='Cap', attendee_name='C Cap',
+            attendee_email='c@example.com', is_table_captain=True,
+        )
+        self.guest = Participant.objects.create(
+            given_name='G', family_name='Guest', attendee_name='G Guest',
+            attendee_email='g@example.com',
+        )
+        self.restaurant = Restaurant.objects.create(
+            name='R', address='A', max_seats=4, assigned_captain=self.captain,
+        )
+        Assignment.objects.create(participant=self.guest, restaurant=self.restaurant)
+        ParticipantComment.objects.create(
+            participant=self.guest, comment_text='hi', created_by=self.admin,
+        )
+        EmailLog.objects.create(
+            participant=self.guest, restaurant=self.restaurant,
+            email_type='initial_assignment', recipient_email='g@example.com',
+            subject='s', body_text='b',
+        )
+
+    def _roundtrip(self, payload):
+        import json
+        from core.services import backup
+        return backup.parse_backup(json.dumps(payload))
+
+    def test_restore_roundtrip_preserves_rows_and_timestamps(self):
+        from core.services import backup
+        payload = self._roundtrip(backup.export_backup())
+        created = Participant.objects.get(pk=self.guest.pk).created_at
+        token = Participant.objects.get(pk=self.guest.pk).carpool_token
+
+        Participant.objects.all().delete()
+        EventStatus.objects.update(event_name='Broken')
+
+        result = backup.import_backup(payload, mode='restore')
+        self.assertEqual(result['loaded']['participants'], 2)
+        guest = Participant.objects.get(pk=self.guest.pk)
+        self.assertEqual(guest.created_at, created)
+        self.assertEqual(guest.carpool_token, token)
+        self.assertEqual(guest.assignment.restaurant_id, self.restaurant.pk)
+        self.assertEqual(Restaurant.objects.get().assigned_captain_id, self.captain.pk)
+        self.assertEqual(EventStatus.get_current().event_name, 'Original')
+        self.assertEqual(guest.comments.get().created_by, self.admin)
+
+    def test_merge_single_table_leaves_others_untouched(self):
+        from core.services import backup
+        payload = self._roundtrip(backup.export_backup(['event_status']))
+        EventStatus.objects.update(event_name='Broken')
+        extra = Participant.objects.create(
+            given_name='N', family_name='New', attendee_name='N New',
+            attendee_email='n@example.com',
+        )
+        backup.import_backup(payload, mode='merge')
+        self.assertEqual(EventStatus.get_current().event_name, 'Original')
+        self.assertTrue(Participant.objects.filter(pk=extra.pk).exists())
+        self.assertEqual(Assignment.objects.count(), 1)
+
+    def test_dry_run_changes_nothing(self):
+        from core.services import backup
+        payload = self._roundtrip(backup.export_backup())
+        EventStatus.objects.update(event_name='Broken')
+        backup.import_backup(payload, mode='restore', dry_run=True)
+        self.assertEqual(EventStatus.get_current().event_name, 'Broken')
+
+    def test_unknown_comment_author_is_cleared(self):
+        from core.services import backup
+        payload = self._roundtrip(backup.export_backup(['participant_comments']))
+        for obj in payload['objects']:
+            obj['fields']['created_by'] = ['ghost']
+        result = backup.import_backup(payload, mode='merge')
+        self.assertEqual(result['authors_cleared'], 1)
+
+    def test_rejects_foreign_file(self):
+        from core.services import backup
+        with self.assertRaises(backup.BackupError):
+            backup.parse_backup('[{"model": "auth.user"}]')
+
+    def test_admin_page_export_and_import(self):
+        import json
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        url = reverse('admin-backup')
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        resp = self.client.post(url, {'action': 'export', 'tables': ['event_status']})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('attachment', resp['Content-Disposition'])
+        body = resp.content
+
+        EventStatus.objects.update(event_name='Broken')
+        resp = self.client.post(url, {
+            'action': 'import', 'mode': 'merge',
+            'file': SimpleUploadedFile('b.json', body, 'application/json'),
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(EventStatus.get_current().event_name, 'Original')
+        self.assertEqual(json.loads(body)['counts'], {'event_status': 1})
+
+    def test_admin_page_requires_superuser(self):
+        staff = User.objects.create_user('staff', 's@example.com', 'pw', is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(reverse('admin-backup')).status_code, 403)
