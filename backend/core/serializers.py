@@ -125,11 +125,15 @@ class CarpoolMessageSerializer(serializers.ModelSerializer):
     """Serializer for CarpoolMessage model, as returned to a participant."""
     sender_name = serializers.CharField(source='sender.attendee_name', read_only=True)
     is_mine = serializers.SerializerMethodField()
+    is_deleted = serializers.SerializerMethodField()
 
     class Meta:
         model = CarpoolMessage
-        fields = ['id', 'body', 'sender_name', 'is_mine', 'created_at']
+        fields = ['id', 'body', 'sender_name', 'is_mine', 'is_deleted', 'created_at']
         read_only_fields = fields
+
+    def get_is_deleted(self, obj):
+        return obj.deleted_at is not None
 
     def get_is_mine(self, obj):
         viewer = self.context.get('viewer')

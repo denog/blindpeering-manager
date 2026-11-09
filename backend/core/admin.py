@@ -3,14 +3,21 @@ Django Admin configuration for core models.
 """
 
 from django.contrib import admin
+from import_export.admin import ImportExportModelAdmin
+
 from .models import (
     Participant, Restaurant, Assignment, EventStatus, CarpoolMessage,
     EmailLog, RestaurantComment, ParticipantComment
 )
+from .resources import (
+    AssignmentResource, CarpoolMessageResource, ParticipantResource,
+    RestaurantResource,
+)
 
 
 @admin.register(Participant)
-class ParticipantAdmin(admin.ModelAdmin):
+class ParticipantAdmin(ImportExportModelAdmin):
+    resource_classes = [ParticipantResource]
     list_display = [
         'attendee_name', 'attendee_email', 'is_table_captain',
         'status', 'created_at'
@@ -21,7 +28,8 @@ class ParticipantAdmin(admin.ModelAdmin):
 
 
 @admin.register(Restaurant)
-class RestaurantAdmin(admin.ModelAdmin):
+class RestaurantAdmin(ImportExportModelAdmin):
+    resource_classes = [RestaurantResource]
     list_display = ['name', 'address', 'max_seats', 'assigned_captain', 'created_at']
     list_filter = ['reservation_confirmed']
     search_fields = ['name', 'address']
@@ -29,7 +37,8 @@ class RestaurantAdmin(admin.ModelAdmin):
 
 
 @admin.register(Assignment)
-class AssignmentAdmin(admin.ModelAdmin):
+class AssignmentAdmin(ImportExportModelAdmin):
+    resource_classes = [AssignmentResource]
     list_display = ['participant', 'restaurant', 'assigned_at', 'created_at']
     list_filter = ['restaurant']
     search_fields = ['participant__attendee_name', 'restaurant__name']
@@ -49,9 +58,10 @@ class EventStatusAdmin(admin.ModelAdmin):
 
 
 @admin.register(CarpoolMessage)
-class CarpoolMessageAdmin(admin.ModelAdmin):
-    list_display = ['restaurant', 'sender', 'body', 'created_at', 'expires_at']
-    list_filter = ['restaurant']
+class CarpoolMessageAdmin(ImportExportModelAdmin):
+    resource_classes = [CarpoolMessageResource]
+    list_display = ['restaurant', 'sender', 'body', 'deleted_at', 'created_at', 'expires_at']
+    list_filter = ['restaurant', ('deleted_at', admin.EmptyFieldListFilter)]
     search_fields = ['body', 'sender__attendee_name', 'restaurant__name']
     readonly_fields = ['id', 'created_at', 'updated_at', 'expires_at']
 
@@ -59,7 +69,8 @@ class CarpoolMessageAdmin(admin.ModelAdmin):
         # Carpool messages are only ever authored by participants through the
         # token-authenticated API, which stamps the immutable expires_at. There
         # is no sensible value for that field in a manual admin form, so adding
-        # here is disabled -- staff moderation is view/delete only.
+        # here is disabled -- staff moderation is view/delete only. (CSV
+        # import is still possible; it carries expires_at in the file.)
         return False
 
 

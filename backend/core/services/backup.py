@@ -1,7 +1,7 @@
 """
 Export / import of the core event tables as a single JSON document.
 
-Used by the superuser-only admin page (/admin/backup/), so data can be
+Used by the superuser-only admin page (/dj-admin/backup/), so data can be
 moved in and out of production through the browser when there is no shell or
 file-copy access to the host.
 

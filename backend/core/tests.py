@@ -207,7 +207,24 @@ class CarpoolBoardTests(APITestCase):
             reverse('carpool-delete-message', args=[self.alice.carpool_token, message.id])
         )
         self.assertEqual(alice_delete.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(CarpoolMessage.objects.filter(id=message.id).exists())
+
+        # Soft delete: row stays as a placeholder, but the text is gone.
+        message.refresh_from_db()
+        self.assertIsNotNone(message.deleted_at)
+        self.assertEqual(message.body, '')
+
+        cache.clear()
+        board = self.client.get(self._board_url(self.bob)).json()
+        [shown] = board['messages']
+        self.assertTrue(shown['is_deleted'])
+        self.assertEqual(shown['body'], '')
+
+        # Deleting again is a 404, not a second "delete".
+        cache.clear()
+        again = self.client.delete(
+            reverse('carpool-delete-message', args=[self.alice.carpool_token, message.id])
+        )
+        self.assertEqual(again.status_code, status.HTTP_404_NOT_FOUND)
 
     @mock.patch.dict(
         'rest_framework.throttling.SimpleRateThrottle.THROTTLE_RATES',
@@ -413,3 +430,97 @@ class BackupTests(TestCase):
         staff = User.objects.create_user('staff', 's@example.com', 'pw', is_staff=True)
         self.client.force_login(staff)
         self.assertEqual(self.client.get(reverse('admin-backup')).status_code, 403)
+
+
+class AdminCsvTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser('admin', 'a@example.com', 'pw')
+        self.client.force_login(self.admin)
+        self.alice = Participant.objects.create(
+            given_name='Alice', family_name='A', attendee_name='Alice A',
+            attendee_email='alice@example.com',
+        )
+        self.restaurant = Restaurant.objects.create(name='R', address='A', max_seats=4)
+        self.other = Restaurant.objects.create(name='S', address='B', max_seats=4)
+        Assignment.objects.create(participant=self.alice, restaurant=self.restaurant)
+
+    def test_admin_lives_under_dj_admin(self):
+        self.assertEqual(reverse('admin:index'), '/dj-admin/')
+        self.assertEqual(reverse('admin-backup'), '/dj-admin/backup/')
+
+    def _export(self, model_name):
+        url = reverse(f'admin:core_{model_name}_export')
+        resp = self.client.post(url, {'format': '0', **self._all_fields(url)})
+        self.assertEqual(resp.status_code, 200, resp.content[:500])
+        self.assertIn('attachment', resp['Content-Disposition'])
+        return resp.content.decode('utf-8-sig')
+
+    def _all_fields(self, url):
+        # The v4 export form has one checkbox per resource field; tick them all.
+        form = self.client.get(url).context['form']
+        return {name: 'on' for name in form.fields if name not in ('format', 'resource', 'export_items')}
+
+    def _import(self, model_name, csv_text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        url = reverse(f'admin:core_{model_name}_import')
+        resp = self.client.post(url, {
+            'format': '0',
+            'import_file': SimpleUploadedFile('x.csv', csv_text.encode(), 'text/csv'),
+        })
+        self.assertEqual(resp.status_code, 200)
+        confirm = resp.context.get('confirm_form')
+        self.assertIsNotNone(confirm, resp.content.decode()[:2000])
+        resp = self.client.post(
+            reverse(f'admin:core_{model_name}_process_import'), confirm.initial,
+        )
+        self.assertEqual(resp.status_code, 302)
+
+    def test_changelists_show_import_export(self):
+        for name in ['participant', 'restaurant', 'assignment', 'carpoolmessage']:
+            resp = self.client.get(reverse(f'admin:core_{name}_changelist'))
+            self.assertContains(resp, reverse(f'admin:core_{name}_import'))
+            self.assertContains(resp, reverse(f'admin:core_{name}_export'))
+
+    def test_participant_export_omits_carpool_token(self):
+        body = self._export('participant')
+        self.assertIn('alice@example.com', body)
+        self.assertNotIn('carpool_token', body)
+        self.assertNotIn(self.alice.carpool_token, body)
+
+    def test_participant_round_trip_updates_and_creates(self):
+        body = self._export('participant')
+        header, row = body.strip().splitlines()[:2]
+        body = body.replace('Alice A', 'Alice Changed')
+        cols = header.split(',')
+        new = dict.fromkeys(cols, '')
+        new.update(given_name='Bob', family_name='B', attendee_name='Bob B',
+                   attendee_email='bob@example.com', status='registered',
+                   is_table_captain='0', manual_status_override='0',
+                   manual_email_override='0')
+        body = body.strip() + '\n' + ','.join(new[c] for c in cols) + '\n'
+        token = self.alice.carpool_token
+        self._import('participant', body)
+
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.attendee_name, 'Alice Changed')
+        self.assertEqual(self.alice.carpool_token, token)
+        bob = Participant.objects.get(attendee_email='bob@example.com')
+        self.assertTrue(bob.carpool_token)
+
+    def test_assignment_import_moves_participant(self):
+        self._import(
+            'assignment',
+            f'participant,restaurant\n{self.alice.id},{self.other.id}\n',
+        )
+        self.assertEqual(Assignment.objects.get().restaurant, self.other)
+
+    def test_restaurant_and_carpool_export(self):
+        self.assertIn('R', self._export('restaurant'))
+        EventStatus.objects.update_or_create(id='default', defaults={})
+        CarpoolMessage.objects.create(
+            restaurant=self.restaurant, sender=self.alice, body='lift?',
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+        body = self._export('carpoolmessage')
+        self.assertIn('lift?', body)
+        self.assertIn('Alice A', body)

@@ -171,7 +171,16 @@ class CarpoolMessage(TimestampedModel):
         on_delete=models.CASCADE,
         related_name='carpool_messages'
     )
-    body = models.CharField(max_length=500)
+    body = models.CharField(max_length=500, blank=True)
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            'Set when the sender deletes the message. The body is wiped and the '
+            'board shows a "[this message was deleted]" placeholder instead, so '
+            'the rest of the conversation keeps its context.'
+        )
+    )
     expires_at = models.DateTimeField(
         editable=False,
         help_text=(

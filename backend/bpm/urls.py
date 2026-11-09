@@ -10,8 +10,8 @@ from django.views.generic import TemplateView
 from core.admin_backup import backup_view
 
 urlpatterns = [
-    path('admin/backup/', admin.site.admin_view(backup_view), name='admin-backup'),
-    path('admin/', admin.site.urls),
+    path('dj-admin/backup/', admin.site.admin_view(backup_view), name='admin-backup'),
+    path('dj-admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/', include('core.urls')),
 ]
@@ -19,5 +19,5 @@ urlpatterns = [
 # In production, serve React app for all non-API routes
 if not settings.DEBUG:
     urlpatterns += [
-        re_path(r'^(?!api/|admin/).*$', TemplateView.as_view(template_name='index.html')),
+        re_path(r'^(?!api/|dj-admin/).*$', TemplateView.as_view(template_name='index.html')),
     ]

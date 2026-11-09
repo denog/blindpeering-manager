@@ -209,15 +209,19 @@ def carpool_post_message(request, token):
 @permission_classes([permissions.AllowAny])
 @throttle_classes([CarpoolWriteThrottle, CarpoolIPThrottle])
 def carpool_delete_message(request, token, message_id):
-    """Delete a carpool message the token holder posted themselves."""
+    """Soft-delete a carpool message the token holder posted themselves.
+
+    The row is kept (so the board shows "[this message was deleted]" in its
+    place) but the body is wiped immediately, so the text is really gone.
+    """
     participant, restaurant, _board_deadline, error = _resolve_carpool_access(token)
     if error:
         return error
 
-    deleted, _ = CarpoolMessage.objects.filter(
-        id=message_id, sender=participant
-    ).delete()
-    if not deleted:
+    updated = CarpoolMessage.objects.filter(
+        id=message_id, sender=participant, deleted_at__isnull=True
+    ).update(body='', deleted_at=timezone.now(), updated_at=timezone.now())
+    if not updated:
         return Response(status=status.HTTP_404_NOT_FOUND)
     return Response(status=status.HTTP_204_NO_CONTENT)
 

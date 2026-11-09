@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     'corsheaders',
+    'import_export',
     # Local apps
     'core',
     'authentication',
@@ -120,6 +121,14 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 # REST Framework
+# django-import-export: CSV-only download/upload on the admin changelists,
+# each upload applied in a single transaction (all rows or none).
+from import_export.formats.base_formats import CSV  # noqa: E402
+
+IMPORT_EXPORT_FORMATS = [CSV]
+IMPORT_EXPORT_USE_TRANSACTIONS = True
+IMPORT_EXPORT_SKIP_ADMIN_LOG = False
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',

@@ -3,7 +3,7 @@
 #
 #   /           -> Vite dev server (React app)
 #   /api/       -> Django
-#   /admin/     -> Django admin
+#   /dj-admin/  -> Django admin
 #   /static/    -> Django (admin assets)
 #   /mailpit/   -> Mailpit web UI (every email the app sends lands here)
 #

@@ -6,6 +6,16 @@ import { useCarpool } from "@/hooks/use-carpool";
 import { CarpoolApiError } from "@/services/carpool-api";
 import { useToast } from "@/hooks/use-toast";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,6 +37,7 @@ function CarpoolPage() {
     useCarpool(token);
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handlePost = async () => {
     const body = draft.trim();
@@ -44,6 +55,7 @@ function CarpoolPage() {
   };
 
   const handleDelete = async (messageId: string) => {
+    setConfirmDeleteId(null);
     try {
       await deleteMessage.mutateAsync(messageId);
     } catch (err) {
@@ -122,12 +134,12 @@ function CarpoolPage() {
                         {new Date(message.created_at).toLocaleString()}
                       </span>
                     </div>
-                    {message.is_mine && (
+                    {message.is_mine && !message.is_deleted && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => handleDelete(message.id)}
+                        onClick={() => setConfirmDeleteId(message.id)}
                         disabled={deleteMessage.isPending}
                         aria-label="Delete message"
                       >
@@ -135,11 +147,45 @@ function CarpoolPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
+                  {message.is_deleted ? (
+                    <p className="mt-1 italic text-muted-foreground">
+                      [this message was deleted]
+                    </p>
+                  ) : (
+                    <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
+                  )}
                 </div>
               ))
             )}
           </div>
+
+          <AlertDialog
+            open={confirmDeleteId !== null}
+            onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this message?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The text of your message will be removed permanently and
+                  can't be restored. Everyone at your table will still see
+                  that you posted something here, shown as "[this message was
+                  deleted]" under your name.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() =>
+                    confirmDeleteId && handleDelete(confirmDeleteId)
+                  }
+                >
+                  Delete message
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <div className="space-y-2 border-t pt-4">
             <Textarea

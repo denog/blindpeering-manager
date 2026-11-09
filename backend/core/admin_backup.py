@@ -1,7 +1,7 @@
 """
 Superuser-only admin page for exporting / importing event data as JSON.
 
-Mounted at /admin/backup/ (see bpm/urls.py). Lets you pull a snapshot from
+Mounted at /dj-admin/backup/ (see bpm/urls.py). Lets you pull a snapshot from
 production and push a corrected one back purely through the browser.
 """
 

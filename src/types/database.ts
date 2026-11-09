@@ -106,6 +106,7 @@ export interface CarpoolMessage {
   body: string
   sender_name: string
   is_mine: boolean
+  is_deleted: boolean
   created_at: string
 }
 

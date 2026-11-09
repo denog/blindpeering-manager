@@ -89,7 +89,7 @@ runserver, Vite with hot reload) behind an nginx gateway on one origin:
 | ----------- | -------------------------------- |
 | `/`         | Vite dev server (React app)      |
 | `/api/`     | Django API                       |
-| `/admin/`   | Django admin                     |
+| `/dj-admin/`| Django admin                     |
 | `/mailpit/` | Mailpit (all emails sent by app) |
 
 ```bash
@@ -162,7 +162,7 @@ CARPOOL_MESSAGE_RETENTION_DAYS=3
 
 Users are created by the admin in Django Admin:
 
-1. Go to `http://localhost:8000/admin/`
+1. Go to `http://localhost:8000/dj-admin/`
 2. Log in with your superuser credentials
 3. Create users under "Users" section
 
