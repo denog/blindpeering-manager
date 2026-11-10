@@ -102,10 +102,26 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 
 class AssignmentWriteSerializer(serializers.ModelSerializer):
-    """Serializer for creating/updating assignments."""
+    """Serializer for creating/updating assignments.
+
+    The create endpoint upserts on participant, so the auto-generated
+    UniqueValidator for the OneToOne `participant` field is dropped --
+    otherwise reassigning an already-assigned participant fails with 400.
+    """
     class Meta:
         model = Assignment
         fields = ['participant', 'restaurant']
+        extra_kwargs = {'participant': {'validators': []}}
+
+    def validate_participant(self, participant):
+        # Captains are linked via Restaurant.assigned_captain, never an
+        # Assignment row; reassigning them goes through the captain flow.
+        if participant.is_table_captain:
+            raise serializers.ValidationError(
+                'Table captains cannot be assigned here; change the '
+                "restaurant's captain instead."
+            )
+        return participant
 
 
 class EventStatusSerializer(serializers.ModelSerializer):

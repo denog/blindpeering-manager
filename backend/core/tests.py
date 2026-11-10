@@ -70,6 +70,42 @@ class BasicTests(APITestCase):
 
 
 @override_settings(CARPOOL_MESSAGE_RETENTION_DAYS=3)
+class AssignmentApiTests(APITestCase):
+    def setUp(self):
+        self.client.force_authenticate(
+            user=User.objects.create_superuser('admin', 'admin@example.com', 'pw')
+        )
+        self.first = Restaurant.objects.create(name='A', address='1', max_seats=4)
+        self.second = Restaurant.objects.create(name='B', address='2', max_seats=4)
+        self.guest = Participant.objects.create(
+            given_name='G', family_name='X', attendee_name='G',
+            attendee_email='g@example.com',
+        )
+
+    def _assign(self, participant, restaurant):
+        return self.client.post(
+            reverse('assignment-list'),
+            {'participant': str(participant.pk), 'restaurant': str(restaurant.pk)},
+            format='json',
+        )
+
+    def test_reassigning_participant_moves_them(self):
+        self.assertEqual(self._assign(self.guest, self.first).status_code,
+                         status.HTTP_201_CREATED)
+        response = self._assign(self.guest, self.second)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Assignment.objects.count(), 1)
+        self.assertEqual(Assignment.objects.get().restaurant, self.second)
+
+    def test_captain_cannot_be_assigned(self):
+        self.guest.is_table_captain = True
+        self.guest.save()
+        response = self._assign(self.guest, self.first)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('participant', response.data)
+        self.assertFalse(Assignment.objects.exists())
+
+
 class CarpoolBoardTests(APITestCase):
     """Public, token-authenticated carpool board (finding #1 and #2 hardening)."""
 

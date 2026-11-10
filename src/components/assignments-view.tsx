@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Download,
+  MailWarning,
   Users,
   UtensilsCrossed,
 } from "lucide-react";
@@ -49,6 +50,7 @@ export function AssignmentsView() {
   );
   const [pendingAdd, setPendingAdd] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [onlyNotEmailed, setOnlyNotEmailed] = useState(false);
   const itemsPerPage = 50;
 
   // Debounce search to avoid excessive filtering
@@ -132,12 +134,22 @@ export function AssignmentsView() {
     [nonCaptainParticipants, assignmentsByParticipant]
   );
 
+  const notEmailedCount = useMemo(
+    () =>
+      eligibleParticipants.filter((p) => !firstEmailByParticipant.has(p.id))
+        .length,
+    [eligibleParticipants, firstEmailByParticipant]
+  );
+
   const filteredPeople = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
+    const basePeople = onlyNotEmailed
+      ? eligibleParticipants.filter((p) => !firstEmailByParticipant.has(p.id))
+      : eligibleParticipants;
     if (!term) {
-      return eligibleParticipants;
+      return basePeople;
     }
-    return eligibleParticipants.filter((participant) => {
+    return basePeople.filter((participant) => {
       const assignmentRestaurantId = assignmentsByParticipant[participant.id];
       const restaurantName = assignmentRestaurantId
         ? restaurants.find(
@@ -156,6 +168,8 @@ export function AssignmentsView() {
     debouncedSearch,
     assignmentsByParticipant,
     restaurants,
+    onlyNotEmailed,
+    firstEmailByParticipant,
   ]);
 
   const filteredRestaurants = useMemo(() => {
@@ -179,10 +193,10 @@ export function AssignmentsView() {
 
   const totalPages = Math.ceil(filteredPeople.length / itemsPerPage);
 
-  // Reset page when debounced search changes
+  // Reset page when debounced search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, onlyNotEmailed]);
 
   const isBusy =
     assignMutation.isPending ||
@@ -395,6 +409,18 @@ export function AssignmentsView() {
             className="flex-1 min-w-[220px]"
           />
           <div className="flex flex-wrap gap-2">
+            {activeTab === "people" && (
+              <Button
+                variant={onlyNotEmailed ? "default" : "outline"}
+                className={onlyNotEmailed ? "gap-2" : "gap-2 bg-transparent"}
+                onClick={() => setOnlyNotEmailed((value) => !value)}
+                aria-pressed={onlyNotEmailed}
+                title="Only show participants who have not received an email yet"
+              >
+                <MailWarning className="h-4 w-4" />
+                No email yet ({notEmailedCount})
+              </Button>
+            )}
             <Button
               variant="outline"
               className="gap-2 bg-transparent"

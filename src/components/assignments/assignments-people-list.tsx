@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   Mail,
   MailCheck,
+  MailWarning,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -115,7 +116,7 @@ export function AssignmentsPeopleList({
                             Late joiner
                           </Badge>
                         )}
-                        {firstEmail?.formattedDate && (
+                        {firstEmail ? (
                           <span
                             className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15"
                             title={`First email (${firstEmail.emailType.replace(
@@ -124,6 +125,13 @@ export function AssignmentsPeopleList({
                             )}) sent ${firstEmail.formattedDate}`}
                           >
                             <MailCheck className="h-3.5 w-3.5 text-emerald-500" />
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-warning/15"
+                            title="No email sent yet"
+                          >
+                            <MailWarning className="h-3.5 w-3.5 text-warning" />
                           </span>
                         )}
                       </div>
