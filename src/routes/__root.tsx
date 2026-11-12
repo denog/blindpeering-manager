@@ -1,4 +1,5 @@
 import { Outlet, createRootRoute } from "@tanstack/react-router";
+import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const Route = createRootRoute({
@@ -8,7 +9,12 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="blind-peering-theme">
-      <Outlet />
+      <div className="flex min-h-screen flex-col bg-background">
+        <div className="flex flex-1 flex-col">
+          <Outlet />
+        </div>
+        <SiteFooter />
+      </div>
     </ThemeProvider>
   );
 }

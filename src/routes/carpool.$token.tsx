@@ -69,7 +69,7 @@ function CarpoolPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex flex-1 items-center justify-center bg-background">
         <Spinner className="h-8 w-8" />
       </div>
     );
@@ -88,7 +88,7 @@ function CarpoolPage() {
         ? error.message
         : "This carpool link isn't available.";
     return (
-      <div className="flex h-screen items-center justify-center bg-background p-4">
+      <div className="flex flex-1 items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Carpool board unavailable</CardTitle>
@@ -100,7 +100,7 @@ function CarpoolPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-background p-4 py-12">
+    <div className="flex flex-1 items-start justify-center bg-background p-4 py-12">
       <Card className="w-full max-w-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-xl">

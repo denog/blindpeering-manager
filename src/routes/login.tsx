@@ -55,14 +55,14 @@ function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Spinner className="h-8 w-8" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
+    <div className="flex flex-1 items-center justify-center bg-background">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
